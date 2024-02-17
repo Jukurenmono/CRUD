@@ -56,6 +56,17 @@
   background-color: red;
 }
 
+.btnCompleted button {
+  border-radius: 50px;
+  height: 50px;
+  cursor: pointer;
+}
+
+.btnCompleted button:hover {
+  border-color:white;
+  background-color: limegreen;
+}
+
 .btnEdit button {
   cursor: pointer;
 }
@@ -76,4 +87,8 @@ hr{
   justify-content: space-around;
   align-items: center;
   gap: 10px;
+}
+
+.map h6 {
+  color: limegreen;
 }
