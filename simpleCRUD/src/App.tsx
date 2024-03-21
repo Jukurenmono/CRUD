@@ -1,114 +1,56 @@
-import { useState, useEffect } from 'react';
-import { ref, remove, push, off, getDatabase, onChildAdded } from 'firebase/database';
-import { app } from './firebase/firebaseConfig';
+import React, { useState } from 'react';
 import { Tab } from '@headlessui/react';
 import Popup from './customPopUp/popUp';
 import Edit from './edit/edit';
 import './App.css';
 import { useCompletedTasks } from './context/CompletedTasksContext';
 
-function App() {
+interface Task {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+function App(): JSX.Element {
   const { completedTasks, addCompletedTask, removeCompletedTask } = useCompletedTasks();
-  const [task, setTask] = useState('');
-  const [editedTasks, setEditedTasks] = useState([]);
-  const [isSuccessPopupVisible, setIsSuccessPopupVisible] = useState(false);
-  const [data, setData] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [task, setTask] = useState<string>('');
+  const [data, setData] = useState<Task[]>([]);
+  const [isSuccessPopupVisible, setIsSuccessPopupVisible] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const database = getDatabase(app);
-    const taskRef = ref(database, 'task/');
-
-    const fetchData = () => {
-      try {
-        onChildAdded(taskRef, (snapshot) => {
-          const task = snapshot.val();
-          setData((prevData) => [
-            ...prevData,
-            { id: snapshot.key, text: task.Task, completed: task.completed },
-          ]);
-        });
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      off(taskRef, 'child_added');
-    };
-  }, []);
-
-  const handleSubmit = () => {
-    const database = getDatabase(app);
-    const taskData = {
-      Task: task,
-      completed: false,
-    };
-
+  const handleSubmit = (): void => {
     if (task.trim() !== '') {
-      const taskRef = push(ref(database, 'task/'), taskData)
-        .then(() => {
-          setIsSuccessPopupVisible(true);
-          setTask('');
-        })
-        .catch((error) => {
-          console.error('Error storing data: ', error);
-        });
+      const newTask: Task = { id: Date.now().toString(), text: task, completed: false };
+      setData([...data, newTask]);
+      setTask('');
+      setIsSuccessPopupVisible(true);
     }
   };
 
-  const handleDelete = (id) => {
-    const database = getDatabase(app);
-    const taskRef = ref(database, `task/${id}`);
-    remove(taskRef)
-      .then(() => {
-        setData((prevData) => prevData.filter((item) => item.id !== id));
-      })
-      .catch((error) => {
-        console.error('Error deleting task: ', error);
-      });
+  const handleDelete = (id: string): void => {
+    setData(data.filter((item) => item.id !== id));
   };
 
-  const handleEdit = (id) => {
+  const handleEdit = (id: string): void => {
     setEditingTaskId(id);
     setIsEditing(true);
   };
 
-  const handleCloseEdit = () => {
+  const handleCloseEdit = (): void => {
     setEditingTaskId(null);
     setIsEditing(false);
   };
 
-  const handleUpdate = () => {
-    const database = getDatabase(app);
-    const taskRef = ref(database, `task/${editingTaskId}`);
+  const handleUpdate = (updatedText: string): void => {
+    setData(data.map((item) => (item.id === editingTaskId ? { ...item, text: updatedText } : item)));
     setIsEditing(false);
   };
 
-  const handleCompleted = (id, text) => {
-    const updatedTasks = data.map((task) => {
-      if (task.id === id) {
-        return { ...task, completed: true };
-      }
-      return task;
-    });
-  
-    setData(updatedTasks);
+  const handleCompleted = (id: string, text: string): void => {
     addCompletedTask({ id, text });
-    const database = getDatabase(app);
-    const taskRef = ref(database, `task/${id}`);
-    remove(taskRef)
-      .then(() => {
-        setData((prevData) => prevData.filter((item) => item.id !== id));
-      })
-      .catch((error) => {
-        console.error('Error deleting task: ', error);
-      });
+    setData(data.filter((item) => item.id !== id));
   };
-  
 
   return (
     <>
@@ -122,7 +64,7 @@ function App() {
                 }`
               }
               style={{ marginRight: '10px' }}
-              >
+            >
               To Do
             </Tab>
             <Tab
@@ -140,37 +82,37 @@ function App() {
                 <h1>Enter your Task</h1>
               </div>
               <div className='input'>
-                <textarea rows='4' cols='50' value={task} onChange={(event) => setTask(event.target.value)} />
+                <textarea rows={4} cols={50} value={task} onChange={(event) => setTask(event.target.value)} />
               </div>
               <div className='button'>
                 <button onClick={handleSubmit}>Submit</button>
               </div>
               <hr />
-              {data.length == 0 ? (
+              {data.length === 0 ? (
                 <div>
                   <h2>To Do List (0)</h2>
                 </div>
               ) : (
                 <div>
                   <h2>To Do List ({data.length})</h2>
-                  <List data={data.filter((task) => !task.completed)} handleEdit={handleEdit} handleDelete={handleDelete} handleCompleted={handleCompleted}/>
+                  <List data={data} handleEdit={handleEdit} handleDelete={handleDelete} handleCompleted={handleCompleted} />
                 </div>
               )}
               {isSuccessPopupVisible && <Popup />}
               {isEditing && <Edit id={editingTaskId} onClose={handleCloseEdit} onUpdate={handleUpdate} />}
             </Tab.Panel>
             <Tab.Panel className='rounded-xl bg-white p-3 ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2'>
-            {completedTasks.length === 0 ? (
-              <div>
-                <h2>Completed Tasks (0)</h2>
-              </div>
-            ) : (
-              <div>
-                <h2>Completed Tasks ({completedTasks.length})</h2>
-                <CompletedList data={completedTasks}/>
-              </div>
-            )}
-          </Tab.Panel>
+              {completedTasks.length === 0 ? (
+                <div>
+                  <h2>Completed Tasks (0)</h2>
+                </div>
+              ) : (
+                <div>
+                  <h2>Completed Tasks ({completedTasks.length})</h2>
+                  <CompletedList data={completedTasks} />
+                </div>
+              )}
+            </Tab.Panel>
           </Tab.Panels>
         </Tab.Group>
       </div>
@@ -178,7 +120,14 @@ function App() {
   );
 }
 
-function List({ data, handleEdit, handleDelete, handleCompleted }) {
+interface ListProps {
+  data: Task[];
+  handleEdit: (id: string) => void;
+  handleDelete: (id: string) => void;
+  handleCompleted: (id: string, text: string) => void;
+}
+
+function List({ data, handleEdit, handleDelete, handleCompleted }: ListProps): JSX.Element {
   return (
     <div className='mapContainer'>
       {data.map((item) => (
@@ -201,7 +150,11 @@ function List({ data, handleEdit, handleDelete, handleCompleted }) {
   );
 }
 
-function CompletedList({ data }) {
+interface CompletedListProps {
+  data: Task[];
+}
+
+function CompletedList({ data }: CompletedListProps): JSX.Element {
   return (
     <div className='mapContainer'>
       {data.map((item) => (
@@ -213,6 +166,5 @@ function CompletedList({ data }) {
     </div>
   );
 }
-
 
 export default App;
